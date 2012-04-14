@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+
+	
+	<entry key="SQL_Insert_Conceptos_601010">
+		INSERT INTO 977r.tconceptosfacturables (
+		  acuerdo,
+		  TIPO_DE_SERVICIO,
+		  DESC_TIPO_DE_SERVICIO,
+		  CONCEPTO_FACTURABLE,
+		  DESC_CONCEPTO_FACTURABLE
+		)
+		
+		SELECT
+		  v.acuerdo,
+		  v.TIPO_DE_SERVICIO,
+		  v.DESC_TIPO_DE_SERVICIO,
+		  v.CONCEPTO_FACTURABLE,
+		  v.DESC_CONCEPTO_FACTURABLE
+
+		FROM v601010_ext v
+      		left join 977r.tconceptosfacturables t on
+		        t.acuerdo = v.acuerdo
+		        and t.TIPO_DE_SERVICIO = v.TIPO_DE_SERVICIO
+		        and t.DESC_TIPO_DE_SERVICIO = v.DESC_TIPO_DE_SERVICIO
+		        and t.CONCEPTO_FACTURABLE = v.CONCEPTO_FACTURABLE
+		        and t.DESC_CONCEPTO_FACTURABLE = v.DESC_CONCEPTO_FACTURABLE
+
+    	where
+			v.acuerdo = "--ACUERDO--"
+      		and t.acuerdo is null
+
+		GROUP BY
+		  v.acuerdo,
+		  v.TIPO_DE_SERVICIO,
+		  v.DESC_TIPO_DE_SERVICIO,
+		  v.CONCEPTO_FACTURABLE,
+		  v.DESC_CONCEPTO_FACTURABLE
+		;
+
+	</entry>
+
+
+	<entry key="SQL_Insert_Conceptos_701010">
+		INSERT INTO 977r.tconceptosfacturables (
+		  acuerdo,
+		  TIPO_DE_SERVICIO,
+		  DESC_TIPO_DE_SERVICIO,
+		  CONCEPTO_FACTURABLE,
+		  DESC_CONCEPTO_FACTURABLE
+		)
+		
+		SELECT
+		  v.acuerdo,
+		  v.TIPO_DE_SERVICIO,
+		  v.DESC_TIPO_DE_SERVICIO,
+		  v.CONCEPTO_FACTURABLE,
+		  v.DESC_CONCEPTO_FACTURABLE
+
+		FROM v701010_ext v
+      		left join 977r.tconceptosfacturables t on
+		        t.acuerdo = v.acuerdo
+		        and t.TIPO_DE_SERVICIO = v.TIPO_DE_SERVICIO
+		        and t.DESC_TIPO_DE_SERVICIO = v.DESC_TIPO_DE_SERVICIO
+		        and t.CONCEPTO_FACTURABLE = v.CONCEPTO_FACTURABLE
+		        and t.DESC_CONCEPTO_FACTURABLE = v.DESC_CONCEPTO_FACTURABLE
+
+    	where
+			v.acuerdo = "--ACUERDO--"
+      		and t.acuerdo is null
+
+		GROUP BY
+		  v.acuerdo,
+		  v.TIPO_DE_SERVICIO,
+		  v.DESC_TIPO_DE_SERVICIO,
+		  v.CONCEPTO_FACTURABLE,
+		  v.DESC_CONCEPTO_FACTURABLE
+		;
+
+	</entry>
+
+
+	<entry key="SQL_Insert_Conceptos_6701010">
+		INSERT INTO 977r.tconceptosfacturables (
+		  acuerdo,
+		  TIPO_DE_SERVICIO,
+		  DESC_TIPO_DE_SERVICIO,
+		  CONCEPTO_FACTURABLE,
+		  DESC_CONCEPTO_FACTURABLE
+		)
+		
+		SELECT
+		  v.acuerdo,
+		  v.TIPO_DE_SERVICIO,
+		  v.DESC_TIPO_DE_SERVICIO,
+		  v.CONCEPTO_FACTURABLE,
+		  v.DESC_CONCEPTO_FACTURABLE
+
+		FROM tbl_ccf_acap_ext v
+      		left join 977r.tconceptosfacturables t on
+		        t.acuerdo = v.acuerdo
+		        and t.TIPO_DE_SERVICIO = v.TIPO_DE_SERVICIO
+		        and t.DESC_TIPO_DE_SERVICIO = v.DESC_TIPO_DE_SERVICIO
+		        and t.CONCEPTO_FACTURABLE = v.CONCEPTO_FACTURABLE
+		        and t.DESC_CONCEPTO_FACTURABLE = v.DESC_CONCEPTO_FACTURABLE
+
+    	where
+			v.acuerdo = "--ACUERDO--"
+      		and t.acuerdo is null
+
+		GROUP BY
+		  v.acuerdo,
+		  v.TIPO_DE_SERVICIO,
+		  v.DESC_TIPO_DE_SERVICIO,
+		  v.CONCEPTO_FACTURABLE,
+		  v.DESC_CONCEPTO_FACTURABLE
+		;
+
+	</entry>
+
+	<entry key="SQL_Insert_Trafico">
+		INSERT INTO 977r.ttrafico (
+		  	acuerdo,
+		  	ambito_de_trafico,
+      		desc_ambito_de_trafico
+		)
+
+		SELECT
+		  v.acuerdo,
+		  v.ambito_de_trafico,
+      	  v.desc_ambito_de_trafico
+
+		FROM tbl_trf_cursado_acap_ext v
+      	left join 977r.ttrafico t on
+  		  	t.acuerdo = v.acuerdo
+	  	  	and t.ambito_de_trafico = v.ambito_de_trafico
+        	and t.desc_ambito_de_trafico = v.desc_ambito_de_trafico
+
+
+    	WHERE 
+			v.acuerdo = "--ACUERDO--"
+        	and t.acuerdo is null
+
+		GROUP BY
+		  v.acuerdo,
+		  v.ambito_de_trafico
+
+		  ;
+
+
+	</entry>
+	
+	<entry key="SQL_Insert_Trafico_Internacional">
+		INSERT INTO 977r.ttrafico_internacional (
+			acuerdo, 
+			ambito_de_Trafico, 
+			desc_ambito_de_Trafico, 
+			destino, 
+			pais_destino
+		)
+		
+		SELECT
+		
+	  		v.acuerdo, 
+	  		v.ambito_de_Trafico, 
+	  		v.desc_ambito_de_Trafico, 
+	  		v.destino, 
+	  		v.pais_destino
+	  		
+		FROM 
+			v702005_ext v
+			LEFT JOIN 977r.ttrafico_internacional t on
+	  			t.acuerdo = v.acuerdo 
+	  			and t.ambito_de_Trafico = v.ambito_de_Trafico 
+	  			and t.desc_ambito_de_Trafico = v.desc_ambito_de_Trafico 
+	  			and t.destino = v.destino
+	  			and t.pais_destino = v.pais_destino
+				
+	    WHERE 
+
+	    	v.acuerdo = "--ACUERDO--"
+        	and t.acuerdo is null
+
+		GROUP BY 
+			pais_destino
+		
+		;	
+
+	</entry>
+	
+	<entry key="ActualizarTablas">
+		CALL Actualizar_TodasTablasAux(@param);
+	</entry>
+
+	<entry key="INCORPORAR_CUOTAS_DETALLE">
+		CALL 977r.977R_CUOTAS_ADDINCLUDE("--ACUERDO--", @param);
+	</entry>
+
+	<entry key="INCORPORAR_CUOTAS_CONDICIONES">
+		CALL 977r.977R_COND_TConceptosFacturables("--ACUERDO--", @param);
+	</entry>
+
+	<entry key="INCORPORAR_TRAFICO_DETALLE">
+		CALL 977r.977R_TRAFICO_ADDINCLUDE("--ACUERDO--", @param);
+	</entry>
+
+	<entry key="INCORPORAR_TRAFICO_CONDICIONES">
+		CALL 977r.977R_COND_TTrafico("--ACUERDO--", @param);
+	</entry>
+
+	<entry key="INCORPORAR_TRAFICOINT_PORPAIS_DETALLE">
+		CALL 977r.977R_TRAFICOINT_ADDINCLUDE("--ACUERDO--", @param);
+	</entry>
+
+	<entry key="INCORPORAR_TRAFICOINT_PORPAIS_CONDICIONES">
+		CALL 977r.977R_COND_TTraficoIntenacional_Por_Pais("--ACUERDO--", @param);
+	</entry>
+
+	<entry key="INCORPORAR_TRAFICOINT_PORNIVEL_DETALLE">
+		CALL 977r.977R_TRAFICOINTDET_ADDINCLUDE("--ACUERDO--", @param);
+	</entry>
+
+	<entry key="INCORPORAR_TRAFICO_PORNIVEL_CONDICIONES">
+		CALL 977r.977R_COND_TTraficoInternacional_Por_Nivel("--ACUERDO--", @param);
+	</entry>
+
+</properties>
+
