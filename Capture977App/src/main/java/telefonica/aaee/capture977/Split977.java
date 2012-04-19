@@ -113,7 +113,12 @@ public class Split977 {
 
 		try {
 			
-			String[] aProps = {"java.class.path", "java.ext.dirs","java.library.path", "path.separator"};
+			String[] aProps = {
+					"java.class.path"
+					, "java.ext.dirs"
+					, "java.library.path"
+					, "path.separator"
+					};
 			for(String aProp : aProps){
 				sb.append(aProp).append(":  [").append(System.getProperty(aProp)).append("]").append(CRLF);
 			}
@@ -132,8 +137,7 @@ public class Split977 {
 			 */
 			System.out.println(SQL_QUERIES);
 			sb.append(SQL_QUERIES);
-			InputStream XMLstream = getClass().getResourceAsStream(
-					SQL_QUERIES);
+			InputStream XMLstream = getClass().getResourceAsStream( SQL_QUERIES);
 			if (XMLstream == null) {
 				throw new FileNotFoundException(
 						"No se ha encontrado el fichero en el JAR: " +SQL_QUERIES);
@@ -226,8 +230,15 @@ public class Split977 {
 
 	/**
 	 * 
+	 * Genera un fichero de texto con nombre el parámetro filename 
+	 * y extensión .sql
+	 * 
+	 * En el se incluyen los comandos que generarán dichas tablas.
+	 * 
+	 * Hay un atributo de la clase que indica si se ha de incluir o no
+	 * la eliminación de tablas (DROP TABLE). Por defecto es FALSE.
+	 * 
 	 * @param fileName
-	 * @param fileName2
 	 */
 	private String createSQLCreateTables(String fileName) {
 		
@@ -280,16 +291,15 @@ public class Split977 {
 			
 			for (Iterator<String> i = vKeys.iterator(); i.hasNext();) {
 				String codigoRegistro = (String) i.next();
-				// System.out.println(codigoRegistro);
 
-				/**
-					 * 
-					 */
+				// El registro 702010 es el detalle de llamadas...
 				if (codigoRegistro.equals("702010") && !detalleLlamadas) {
 					// no hacemos nada... sin detalle
-				} else if (codigoRegistro.equals("702020")
-						&& !detalleLlamadasRI) {
+
+				// El registro 702010 es el detalle de llamadas de RED INTELIGENTE...
+				} else if (codigoRegistro.equals("702020") && !detalleLlamadasRI) {
 					// no hacemos nada... sin detalle
+
 				} else {
 
 					TipoRegistro tr = registros.get(codigoRegistro);
@@ -302,9 +312,6 @@ public class Split977 {
 						Bloque bloque = tr.getBloques()[iBloque];
 						EstructuraCampo[] estructura = bloque.getEstructuras();
 
-						// StringBuilder SQLDropTableTemp = new
-						// StringBuilder("DROP TABLE IF EXISTS _temp_T" +
-						// codigoRegistro + "_"+(iBloque+1) + ";");
 						StringBuilder SQLDropTableDef = null;
 						if (borrarTablas) {
 							SQLDropTableDef = new StringBuilder(
@@ -319,12 +326,13 @@ public class Split977 {
 								+ codigoRegistro + "_" + (iBloque + 1) + " (");
 
 						StringBuilder SQLCreateTableCamposComunes = new StringBuilder();
-						SQLCreateTableCamposComunes.append(" fichero VARCHAR(12) NOT NULL, ");
-						SQLCreateTableCamposComunes.append(" CampoClave VARCHAR(8) NOT NULL, ");
-						SQLCreateTableCamposComunes.append(" FECHA_FACTURA VARCHAR(8) NOT NULL, ");
-						SQLCreateTableCamposComunes.append(" CIF_CLIENTE_Clave VARCHAR(18) NOT NULL, ");
-						SQLCreateTableCamposComunes.append(" ACUERDO VARCHAR(18) NOT NULL, ");
-						SQLCreateTableCamposComunes.append(" CODIGO_REGISTRO_EXT VARCHAR(8) NOT NULL ");
+						SQLCreateTableCamposComunes
+							.append(" fichero VARCHAR(12) NOT NULL, ")
+							.append(" CampoClave VARCHAR(8) NOT NULL, ")
+							.append(" FECHA_FACTURA VARCHAR(8) NOT NULL, ")
+							.append(" CIF_CLIENTE_Clave VARCHAR(18) NOT NULL, ")
+							.append(" ACUERDO VARCHAR(18) NOT NULL, ")
+							.append(" CODIGO_REGISTRO_EXT VARCHAR(8) NOT NULL ");
 
 						/*
 						 * Utilizamos un vector para almacenar los nombres de los campos de las tablas
@@ -344,12 +352,15 @@ public class Split977 {
 						int ocurrencias = 0;
 						for (int k = 0; k < bloque.getNumEstructuras(); k++) {
 
+							/**
+							 * Cambiamos los caracteres que pueden resultar complicados como nombres de campo
+							 * en una tabla MySQL
+							 */
 							String nombreCampo = estructura[k].getNombreCampo()
 									.trim().replace(" ", "_").replace("/_", "").replace(".", "");
 
-							int longCampo = (new Integer(
-									estructura[k].getLongitudCampo()))
-									.intValue();
+							int longCampo = (new Integer(estructura[k].getLongitudCampo())).intValue();
+							
 							if (nombreCampo.startsWith("OCURR")) {
 
 								ocurrencias++;
@@ -357,71 +368,61 @@ public class Split977 {
 
 								// Guardamos el campo en caso de que no esté en
 								// la lista
-								String _nombreCampo = "t" + (iBloque + 1) + "."
-										+ nombreCampo;
+								String _nombreCampo = "t" + (iBloque + 1) + "." + nombreCampo;
 								if (!nombresCampos.contains(_nombreCampo)){
 									nombresCampos.add(_nombreCampo);
 									
 									camposEnTabla.add(nombreCampo);
 								}
 
-								SQLCreateTableDefCampos.append(", ");
-								SQLCreateTableDefCampos.append(nombreCampo);
+								SQLCreateTableDefCampos.append(", ").append(nombreCampo);
 
+								/**
+								 * Añadimos la longitud y características en función del Tipo de Campo
+								 */
 								if (estructura[k].getTipoCampo().equals("N")) {
-									SQLCreateTableDefCampos
-											.append(" INT(11) DEFAULT 0 ");
+									SQLCreateTableDefCampos.append(" INT(11) DEFAULT 0 ");
 
 								} else if (estructura[k].getTipoCampo().equals(
 										"A")) {
-									SQLCreateTableDefCampos.append(" VARCHAR("
-											+ longCampo + ") DEFAULT NULL ");
+									SQLCreateTableDefCampos.append(" VARCHAR(" + longCampo + ") DEFAULT NULL ");
 
-								} else if (estructura[k].getTipoCampo().equals(
-										"I")) {
+								} else if (estructura[k].getTipoCampo().equals("I")) {
 									// el contenido es numérico, ha de
 									// considerarse como tal
-									String formatoCampo = estructura[k]
-											.getFormatoCampo().trim();
-									StringTokenizer st = new StringTokenizer(
-											formatoCampo, ",");
+									String formatoCampo = estructura[k].getFormatoCampo().trim();
+									StringTokenizer st = new StringTokenizer(formatoCampo, ",");
 									String m = st.nextToken();
 									int im = (new Integer(m)).intValue();
 									String d = st.nextToken();
 									int id = (new Integer(d)).intValue();
 									im += id;
 									formatoCampo = im + "," + id;
-									SQLCreateTableDefCampos.append(" DOUBLE("
-											+ formatoCampo + ") DEFAULT 0 ");
+									SQLCreateTableDefCampos.append(" DOUBLE(" + formatoCampo + ") DEFAULT 0 ");
 
-								} else if (estructura[k].getTipoCampo().equals(
-										"F")) {
+								} else if (estructura[k].getTipoCampo().equals("F")) {
 									SQLCreateTableDefCampos
 											.append(" DATE DEFAULT NULL ");
 
-								} else if (estructura[k].getTipoCampo().equals(
-										"D")) {
-									SQLCreateTableDefCampos.append(" VARCHAR("
-											+ longCampo + ") DEFAULT NULL ");
+								} else if (estructura[k].getTipoCampo().equals("D")) {
+									SQLCreateTableDefCampos.append(" VARCHAR(" + longCampo + ") DEFAULT NULL ");
 
-								} else if (estructura[k].getTipoCampo().equals(
-										"H")) {
+								} else if (estructura[k].getTipoCampo().equals("H")) {
 									SQLCreateTableDefCampos
 											.append(" TIME DEFAULT NULL ");
 
 								} else {
-									System.out.println(estructura[k]
-											.getTipoCampo()
-											+ " No contemplado!");
+									System.out.println(estructura[k].getTipoCampo()+ " No contemplado!");
 								}// if
 
+								/**
+								 * Casos especiales en la tabla de detalle de llamadas Simulcom
+								 */
 								if (codigoRegistro.equals("702017")
-										&& nombreCampo
-												.equals("IMPORTE_VALOR_ANADIDO")
+										&& nombreCampo.equals("IMPORTE_VALOR_ANADIDO")
 										&& iBloque == 0) {
 									SQLCreateTableDefCampos.append(", ");
-									SQLCreateTableDefCampos
-											.append(" NUMERO_PARTICIPANTES_2 INT(11) DEFAULT 0 ");
+									SQLCreateTableDefCampos.append(" NUMERO_PARTICIPANTES_2 INT(11) DEFAULT 0 ");
 									
 									camposEnTabla.add("NUMERO_PARTICIPANTES_2");
 
@@ -435,15 +436,12 @@ public class Split977 {
 
 						if (codigoRegistro.equals("901000") && iBloque == 1) {
 							SQLCreateTableDefCampos.append(", ");
-							SQLCreateTableDefCampos
-									.append(" TEXTO VARCHAR(180) ");
+							SQLCreateTableDefCampos .append(" TEXTO VARCHAR(180) ");
 							
 							camposEnTabla.add("TEXTO");
 						}
-						SQLCreateTableDef.append(SQLCreateTableCamposComunes
-								.toString());
-						SQLCreateTableDef.append(SQLCreateTableDefCampos
-								.toString());
+						SQLCreateTableDef.append(SQLCreateTableCamposComunes.toString());
+						SQLCreateTableDef.append(SQLCreateTableDefCampos.toString());
 						SQLCreateTableDef.append(", KEY (CampoClave)");
 						SQLCreateTableDef.append(")  ENGINE=MyISAM;");
 
@@ -493,13 +491,9 @@ public class Split977 {
 
 		try {
 			fileOut2 = new File(fileName2 + ".sql");
-			out2 = new BufferedWriter(
-					new OutputStreamWriter(new FileOutputStream(fileOut2),
-							CODIFICACION_FICHERO_ORIGEN));
+			out2 = new BufferedWriter( new OutputStreamWriter(new FileOutputStream(fileOut2), CODIFICACION_FICHERO_ORIGEN));
 			fileOutIndex = new File("createIndex_01.sql");
-			outIndex = new BufferedWriter(new OutputStreamWriter(
-					new FileOutputStream(fileOutIndex),
-					CODIFICACION_FICHERO_ORIGEN));
+			outIndex = new BufferedWriter(new OutputStreamWriter( new FileOutputStream(fileOutIndex), CODIFICACION_FICHERO_ORIGEN));
 
 			path = pathComponent(fileOut2.getAbsolutePath());
 			path = path.replaceAll("\\\\", "/");
@@ -1557,16 +1551,17 @@ public class Split977 {
 	}
 
 	/**
-	 * @param fileName
+	 * 
+	 * En los registros 903000 está la estructura de los registros de un fichero 977R.
+	 * 
+	 * Este método lee el fichero línea a línea y localiza las líneas que comienzan por 903000. 
+	 * En ellas está la información de cómo leer el resto de registros.
+	 * 
+	 * @param in 
 	 */
 	private void getEstructuraRegistros(BufferedReader in) {
 		try {
-			/**
-			 * //File file = new File(fileName); // BufferedReader in = new
-			 * BufferedReader(new FileReader(file)); BufferedReader in = new
-			 * BufferedReader( new InputStreamReader( new FileInputStream( new
-			 * File(fileName) ), CODIFICACION_FICHERO_ORIGEN) );
-			 */
+
 			int numLinea = 0;
 
 			String line;
@@ -1600,10 +1595,14 @@ public class Split977 {
 					// System.out.println("NumCampos:"+ iNumCampos );
 					int[] arr = { 1 };
 					for (int j = 0; j < iNumBloques; j++) {
-						// Tenemos que pasar el valor de la variable pos por
-						// referencia,
-						// pues se modificar� en el m�todo extraeBloque
-						// El truco est� en pasarlo en un array
+						
+						/**
+						 * Tenemos que pasar el valor de la variable "pos" por referencia,
+						 * pues se modificará en el método "extraeBloque"
+						 * 
+						 * El truco está en pasarlo en un array ya que es un objeto...
+						 * 
+						 */
 						arr[0] = pos;
 						Bloque bloque = extraeBloque(arr, line2, iNumCampos);
 						pos = arr[0];
