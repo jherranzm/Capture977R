@@ -193,6 +193,10 @@
 		CALL Actualizar_TodasTablasAux(@param);
 	</entry>
 
+    <entry key="ActualizarCuotasAperiodicas">
+        CALL 977r.Actualizar_t901000_CuotasAperiodicas_v20120420("--ACUERDO--", @param);
+    </entry>
+
 	<entry key="INCORPORAR_CUOTAS_DETALLE">
 		CALL 977r.977R_CUOTAS_ADDINCLUDE("--ACUERDO--", @param);
 	</entry>

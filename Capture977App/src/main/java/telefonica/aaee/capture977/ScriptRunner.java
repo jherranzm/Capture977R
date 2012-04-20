@@ -154,6 +154,7 @@ public class ScriptRunner {
 						hasResults = statement.execute(command.toString());
 					} else {
 						try {
+							System.out.println(command.toString());
 							statement.execute(command.toString());
 						} catch (SQLException e) {
 							e.fillInStackTrace();

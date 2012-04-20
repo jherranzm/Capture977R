@@ -16,16 +16,26 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.InvalidPropertiesFormatException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
+
+import telefonica.aaee.exceptions.ErrorEnLaInicializacionException;
+import telefonica.aaee.util.zip.Unzip977RFile;
 
 /**
  * @author t130796
@@ -34,6 +44,11 @@ import java.util.regex.Pattern;
 public class Split977 {
 
 
+	private static final Logger LOGGER = Logger.getLogger(Split977.class.getCanonicalName());
+	
+	private static final String SQL_FILE_ADD_DATA = "incorporarDatos.sql";
+	private static final String SQL_FILE_CREATE_TABLES = "createTables.sql";
+	
 	final private static String SQL_QUERIES = "/Capture977R.SQLQueries.xml";
 	final private static String CRLF = "\r\n";
 	final private static String TAB = "\t";
@@ -67,42 +82,17 @@ public class Split977 {
 	/**
 	 * 
 	 */
-	private String dbHost = "";
-	private String dbName = "";
-	private String dbUser = "";
-	private String dbPass = "";
+	private String dbHost = "localhost";
+	private String dbName = "977R";
+	private String dbUser = "root";
+	private String dbPass = "illuminatti";
 
-	private String directorio = null;
+	private String directorioOut = null;
 
 	private Properties sqlStatements = null;
 	
 	private long tiempoEmpleado = 0;
 	
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-
-		try {
-			Split977 sp = new Split977();
-			sp.setAcuerdo(args[0]);
-			String[] f = new String[args.length - 1];
-			for (int k = 1; k < args.length; k++) {
-				f[k - 1] = args[k];
-			}
-			sp.setFicheros(f);
-			sp.setDbHost("localhost");
-			sp.setDbName("977R");
-			sp.setDbUser("root");
-			sp.setDbPass("illuminatti");
-			String path = new java.io.File(".").getCanonicalPath();
-			sp.setDirectorio(path);
-			System.out.println(sp.execute());
-		} catch (Exception e) {
-			// TODO: handle exception
-		}
-
-	}
 
 	/**
 	 * 
@@ -113,77 +103,85 @@ public class Split977 {
 
 		try {
 			
-			String[] aProps = {
-					"java.class.path"
-					, "java.ext.dirs"
-					, "java.library.path"
-					, "path.separator"
-					};
-			for(String aProp : aProps){
-				sb.append(aProp).append(":  [").append(System.getProperty(aProp)).append("]").append(CRLF);
+			if(!init(sb)){
+				throw new ErrorEnLaInicializacionException("No se ha podido crear el directorio de trabajo!");
 			}
-			sb.append("directorio:       [").append(getDirectorio()).append("]").append(CRLF);
+			
+			getConsultasSQLAEjecutar(sb);
 
-			Class.forName("com.mysql.jdbc.Driver");
-			Connection conn = DriverManager.getConnection("jdbc:mysql://"
-					+ getDbHost() + "/" + getDbName() + "", getDbUser(),
-					getDbPass());
-			conn.setAutoCommit(false);
-
-			sqlStatements = new Properties();
-			/**
-			 * FileInputStream fis = new FileInputStream(
-			 * "Capture977R.SQLQueries.xml"); sqlStatements.loadFromXML(fis);
-			 */
-			System.out.println(SQL_QUERIES);
-			sb.append(SQL_QUERIES);
-			InputStream XMLstream = getClass().getResourceAsStream( SQL_QUERIES);
-			if (XMLstream == null) {
-				throw new FileNotFoundException(
-						"No se ha encontrado el fichero en el JAR: " +SQL_QUERIES);
-			} else {
-				System.err.println("XMLStream no es nulo...!");
-				sb.append("XMLStream no es nulo...!");
-			}
-			sqlStatements.loadFromXML(XMLstream);
 
 			Calendar ini = Calendar.getInstance();
 			long lIni = ini.getTimeInMillis();
 			sb.append(lIni);
 
-			// acuerdo = args[0];
 			sb.append("Acuerdo: ").append(acuerdo).append(CRLF);
+			
+			List<String> listaFicheros = new ArrayList<String>();
+			
+			for(String fichero : ficheros){
+				int dot = fichero.lastIndexOf(".");
+				String extension = fichero.substring(dot + 1);
+				
+				if(extension.toLowerCase().equals("zip")){
+					int pos = fichero.lastIndexOf("/");
+					if(pos > 0){
+//						String outPathName = fichero.substring(0, pos);
+						Unzip977RFile uz = new Unzip977RFile();
+						fichero = uz.unzip(fichero, getDirectorioOut());
+						LOGGER.info("Fichero:" + fichero);
+ 					}else{
+ 						throw new Exception("pos " + pos);
+ 					}
+				}else{
+					
+				}
+				listaFicheros.add(fichero);
+			}
 
-			for (int k = 0; k < ficheros.length; k++) {
-				sb.append("ficheros[").append(k).append("]: ").append(ficheros[k]).append(CRLF);
-				BufferedReader in = new BufferedReader(new InputStreamReader(
-						new FileInputStream(new File(ficheros[k])),
-						CODIFICACION_FICHERO_ORIGEN));
+			for(String fichero : listaFicheros){
+				
+				FileInputStream fis = new FileInputStream(new File(fichero));
+				InputStreamReader isr = new InputStreamReader(fis, CODIFICACION_FICHERO_ORIGEN);
+				BufferedReader in = new BufferedReader(isr);
+				
 				getEstructuraRegistros(in);
-				// getEstructuraRegistros(ficheros[k]);
+
 			}
 
-			sb.append(createSQLCreateTables("createTables"));
+			sb.append(createSQLCreateTables(SQL_FILE_CREATE_TABLES));
 
-			for (int k = 0; k < ficheros.length; k++) {
-				sb.append("procesaFichero[" + k + "]: " + ficheros[k] + CRLF);
-				BufferedReader in = new BufferedReader(new InputStreamReader(
-						new FileInputStream(new File(ficheros[k])),
-						CODIFICACION_FICHERO_ORIGEN));
+			for(String fichero : listaFicheros){
+				
+				FileInputStream fis = new FileInputStream(new File(fichero));
+				InputStreamReader isr = new InputStreamReader(fis, CODIFICACION_FICHERO_ORIGEN);
+				BufferedReader in = new BufferedReader(isr);
+				
 				procesaFichero(in);
-				// procesaFichero(ficheros[k]);
 			}
 
-			sb.append(createSQLCreateViews("incorporarDatos"));
+			sb.append(createSQLCreateViews(SQL_FILE_ADD_DATA));
 			cerrarFicherosSalida();
+
+			Connection conn = getDbConnection();
 
 			ScriptRunner runner = new ScriptRunner(conn, false, true);
 
-			runner.runScript(new BufferedReader(new FileReader(
-					"createTables.sql")));
-			runner.runScript(new BufferedReader(new FileReader(
-					"incorporarDatos.sql")));
-
+			String[] ficherosSQL = {
+					getDirectorioOut() + File.separator + SQL_FILE_CREATE_TABLES
+					, getDirectorioOut() + File.separator + SQL_FILE_ADD_DATA
+			};
+			
+			for(String ficheroSQL : ficherosSQL){
+				FileReader fr = new FileReader(ficheroSQL);
+				BufferedReader br = new BufferedReader(fr);
+				
+				runner.runScript(br);
+				
+				br.close();
+				fr.close();
+			}
+			
+			
 			conn.close();
 
 			Calendar fin = Calendar.getInstance();
@@ -192,19 +190,9 @@ public class Split977 {
 			
 			setTiempoEmpleado(lFin - lIni);
 			
-			sb.append("Número de tablas:" + camposPorTabla.size());
-						
+			getInfoTablas(sb);
 			
-			Vector<String> v = new Vector<String>(camposPorTabla.keySet());
-			Collections.sort(v);
-			for (String nombreTabla : v) {
-				sb.append("Nombre tabla:" + nombreTabla + CRLF);
-		         Vector<String> nomCampos = camposPorTabla.get(nombreTabla);
-		         for(String nomCampo : nomCampos){
-		        	 sb.append( TAB + nomCampo + CRLF);
-		         }
-
-		     }
+			cleandirs();
 			
 
 		} catch (FileNotFoundException e) {
@@ -212,10 +200,127 @@ public class Split977 {
 			sb.append("FileNotFoundException:" + e.getMessage());
 		} catch (Exception e) {
 			sb.append("Exception:" + e.getMessage());
+			e.printStackTrace();
 		}
 
 		return sb.toString();
 
+	}
+
+	private void cleandirs() {
+		
+		File dir = new File(getDirectorioOut());
+		
+		deleteDir(dir);
+	}
+	
+	private boolean deleteDir(File dir){
+		if(dir.isDirectory()){
+			// Localizamos los ficheros
+			String[] children = dir.list();
+			for(String file : children){
+				boolean success = deleteDir(new File(dir, file));
+				if(!success){
+					LOGGER.warning("No se puede borrar el fichero " + dir + File.separator + file);
+					return false;
+				}else{
+					LOGGER.info("Borrado el fichero: " + dir + File.separator + file);
+				}
+			}
+		}
+		return dir.delete();
+	}
+
+	/**
+	 * @param sb
+	 */
+	private void getInfoTablas(StringBuilder sb) {
+		sb.append("Número de tablas:" + camposPorTabla.size() + CRLF);
+					
+		
+		Vector<String> v = new Vector<String>(camposPorTabla.keySet());
+		Collections.sort(v);
+		for (String nombreTabla : v) {
+			sb.append("Nombre tabla:" + nombreTabla + CRLF);
+		     Vector<String> nomCampos = camposPorTabla.get(nombreTabla);
+		     for(String nomCampo : nomCampos){
+		    	 sb.append( TAB + nomCampo + CRLF);
+		     }
+
+		 }
+	}
+
+	/**
+	 * @param sb
+	 * @throws FileNotFoundException
+	 * @throws IOException
+	 * @throws InvalidPropertiesFormatException
+	 */
+	private void getConsultasSQLAEjecutar(StringBuilder sb) throws FileNotFoundException, IOException,
+			InvalidPropertiesFormatException {
+		sqlStatements = new Properties();
+		/**
+		 * FileInputStream fis = new FileInputStream(
+		 * "Capture977R.SQLQueries.xml"); sqlStatements.loadFromXML(fis);
+		 */
+		LOGGER.info(SQL_QUERIES);
+		sb.append(SQL_QUERIES);
+		InputStream XMLstream = getClass().getResourceAsStream( SQL_QUERIES);
+		if (XMLstream == null) {
+			throw new FileNotFoundException(
+					"No se ha encontrado el fichero en el JAR: " +SQL_QUERIES);
+		} else {
+			LOGGER.info("XMLStream no es nulo...!");
+			sb.append("XMLStream no es nulo...!");
+		}
+		sqlStatements.loadFromXML(XMLstream);
+	}
+
+	/**
+	 * @return
+	 * @throws ClassNotFoundException
+	 * @throws SQLException
+	 */
+	private Connection getDbConnection() throws ClassNotFoundException, SQLException {
+		Class.forName("com.mysql.jdbc.Driver");
+		Connection conn = DriverManager.getConnection("jdbc:mysql://"
+				+ getDbHost() + "/" + getDbName() + "", getDbUser(),
+				getDbPass());
+		conn.setAutoCommit(false);
+		return conn;
+	}
+
+	/**
+	 * @param sb
+	 */
+	private boolean init(StringBuilder sb) {
+		boolean ret = true;
+		String[] aProps = {
+				"java.class.path"
+				, "java.ext.dirs"
+				, "java.library.path"
+				, "path.separator"
+				};
+		for(String aProp : aProps){
+			sb.append(aProp).append(":  [").append(System.getProperty(aProp)).append("]").append(CRLF);
+		}
+		sb.append("directorio:       [").append(getDirectorioOut()).append("]").append(CRLF);
+		
+		setDirectorioOut(getDirectorioOut()+ File.separator + nombreAleatorio());
+		
+		boolean existeDir = (new File(getDirectorioOut())).exists();
+		if(existeDir){
+			LOGGER.info("El directorio:" + getDirectorioOut() + " ya existe!");
+		}else{
+			File outDirName = new File(getDirectorioOut());
+			if(outDirName.mkdirs()){
+				LOGGER.info("El directorio:" + getDirectorioOut() + " se ha creado con éxito!");
+			}else{
+				System.err.println("Error al crear el directorio:" + getDirectorioOut());
+				ret = false;
+			}
+		}
+		return ret;
 	}
 
 	/**
@@ -251,14 +356,15 @@ public class Split977 {
 
 		try {
 
-			fileOut = new File(fileName + ".sql");
+			fileOut = new File(getDirectorioOut()+ File.separator + fileName);
 			out = new BufferedWriter(new OutputStreamWriter(
 					new FileOutputStream(fileOut), CODIFICACION_FICHERO_ORIGEN));
+//			LOGGER.info(fileOut.getAbsolutePath());
 			path = pathComponent(fileOut.getAbsolutePath());
 			path = path.replaceAll("\\\\", "/");
 
-			if (directorio == null)
-				setDirectorio(path);
+			if (directorioOut == null)
+				setDirectorioOut(path);
 
 			if (borrarTablas) {
 				StringBuilder SQLDropTableDefT000000 = new StringBuilder(
@@ -412,7 +518,7 @@ public class Split977 {
 											.append(" TIME DEFAULT NULL ");
 
 								} else {
-									System.out.println(estructura[k].getTipoCampo()+ " No contemplado!");
+									LOGGER.info(estructura[k].getTipoCampo()+ " No contemplado!");
 								}// if
 
 								/**
@@ -482,24 +588,27 @@ public class Split977 {
 		
 		StringBuilder sb = new StringBuilder();
 
-		File fileOut2 = null, fileOutIndex = null;
-		BufferedWriter out2 = null, outIndex = null;
+		File fileOut2 = null
+				//, fileOutIndex = null
+				;
+		BufferedWriter out2 = null
+				//, outIndex = null
+				;
 
 		String path = "";
 		String loadDataInfile = "";
-		String createIndex = "";
+//		String createIndex = "";
 
 		try {
-			fileOut2 = new File(fileName2 + ".sql");
+			fileOut2 = new File(getDirectorioOut()+ File.separator + fileName2);
 			out2 = new BufferedWriter( new OutputStreamWriter(new FileOutputStream(fileOut2), CODIFICACION_FICHERO_ORIGEN));
-			fileOutIndex = new File("createIndex_01.sql");
-			outIndex = new BufferedWriter(new OutputStreamWriter( new FileOutputStream(fileOutIndex), CODIFICACION_FICHERO_ORIGEN));
-
 			path = pathComponent(fileOut2.getAbsolutePath());
 			path = path.replaceAll("\\\\", "/");
 
-			if (directorio == null)
-				setDirectorio(path);
+			if (directorioOut == null){
+				setDirectorioOut(path);
+			}
+				
 
 			out2.write("DELETE FROM T000000 WHERE ");
 			out2.write(" fichero = '" + nombreFicheroOriginal + "' ");
@@ -507,7 +616,7 @@ public class Split977 {
 			out2.write("COMMIT;" + CRLF);
 			out2.flush();
 			
-			loadDataInfile = "load data infile '"
+			loadDataInfile = "load data LOCAL infile '"
 					+ path
 					+ "/000000.txt' into table T000000 "
 					+ "fields terminated by ';' enclosed by '\"' "
@@ -529,16 +638,20 @@ public class Split977 {
 					 */
 				if (codigoRegistro.equals("000000")) {
 					// nada
+					
 				} else if (codigoRegistro.equals("903000")) {
 					// no hacemos nada...
+					
 				} else if (codigoRegistro.equals("702010") && !detalleLlamadas) {
 					// no hacemos nada... sin detalle
+					
 				} else if (codigoRegistro.equals("702020")
 						&& !detalleLlamadasRI) {
 					// no hacemos nada... sin detalle
+					
 				} else {
 
-					// System.out.println("codigoRegistro:[" + codigoRegistro +
+					// LOGGER.info("codigoRegistro:[" + codigoRegistro +
 					// "]");
 
 					TipoRegistro tr = registros.get(codigoRegistro);
@@ -598,7 +711,7 @@ public class Split977 {
 							
 							String strListaCampos = getListaCampos(nombreTabla);
 							
-							loadDataInfile = "load data infile '"
+							loadDataInfile = "load data LOCAL infile '"
 								+ path
 								+ "/"
 								+ strBloque
@@ -615,7 +728,7 @@ public class Split977 {
 
 							String strListaCampos = getListaCampos(strBloque);
 							
-							loadDataInfile = "load data infile '"
+							loadDataInfile = "load data LOCAL infile '"
 									+ path
 									+ "/"
 									+ strBloque
@@ -625,117 +738,116 @@ public class Split977 {
 									+ strListaCampos
 									+ ";"
 									;
-							createIndex = "CREATE INDEX i" + strBloque
-									+ " on T" + strBloque + "(campoClave);";
+//							createIndex = "CREATE INDEX i" + strBloque + " on T" + strBloque + "(campoClave);";
 						}
 						out2.write("" + loadDataInfile + CRLF);
 						out2.write("COMMIT;" + CRLF);
-						outIndex.write("" + createIndex + CRLF);
-						outIndex.write("COMMIT;" + CRLF);
+//						outIndex.write("" + createIndex + CRLF);
+//						outIndex.write("COMMIT;" + CRLF);
 						out2.flush();
-						outIndex.flush();
+//						outIndex.flush();
 
 					}// for(int iBloque = 0; iBloque < tr.getNumBloques();
 						// iBloque++)
 
 					// if (borrarTablas){
-					StringBuilder dropView = new StringBuilder(
-							"DROP VIEW  IF EXISTS v" + codigoRegistro + ";");
-					out2.write("" + dropView.toString() + CRLF);
-					// }
-					StringBuilder createView = new StringBuilder(
-							"CREATE VIEW v" + codigoRegistro + " AS SELECT ");
-					createView.append("	t1.fichero, ");
-					createView.append("	t1.CampoClave, ");
-					createView.append("	t1.FECHA_FACTURA , ");
-					createView.append("	t1.CIF_CLIENTE_Clave, ");
-					createView.append("	t1.Acuerdo, ");
-					createView.append("	t1.CODIGO_REGISTRO_EXT, ");
-					for (int k = 0; k < nombresCampos.size(); k++) {
-						if (nombresCampos.get(k).equals("t3.TEXTO")) {
-							createView.append("	t2.TEXTO");
-						} else if (nombresCampos.get(k).equals("t1.CLIENTE")) {
-							createView.append("	t1.CLIENTE ");
-							if (!codigoRegistro.equals("100000")
-									&& !codigoRegistro.equals("200000")) {
-								createView.append(",");
-								createView
-										.append("	cuc.cliente_tipo_doc, cuc.cliente_cif, cuc.cliente_nombre ");
-							}
-						} else {
-							createView.append(nombresCampos.get(k));
-						}
+					
+//					StringBuilder dropView = new StringBuilder("DROP VIEW  IF EXISTS v" + codigoRegistro + ";");
+//					out2.write("" + dropView.toString() + CRLF);
+//					// }
+//					StringBuilder createView = new StringBuilder(
+//							"CREATE VIEW v" + codigoRegistro + " AS SELECT ");
+//					createView.append("	t1.fichero, ");
+//					createView.append("	t1.CampoClave, ");
+//					createView.append("	t1.FECHA_FACTURA , ");
+//					createView.append("	t1.CIF_CLIENTE_Clave, ");
+//					createView.append("	t1.Acuerdo, ");
+//					createView.append("	t1.CODIGO_REGISTRO_EXT, ");
+//					for (int k = 0; k < nombresCampos.size(); k++) {
+//						if (nombresCampos.get(k).equals("t3.TEXTO")) {
+//							createView.append("	t2.TEXTO");
+//						} else if (nombresCampos.get(k).equals("t1.CLIENTE")) {
+//							createView.append("	t1.CLIENTE ");
+//							if (!codigoRegistro.equals("100000")
+//									&& !codigoRegistro.equals("200000")) {
+//								createView.append(",");
+//								createView
+//										.append("	cuc.cliente_tipo_doc, cuc.cliente_cif, cuc.cliente_nombre ");
+//							}
+//						} else {
+//							createView.append(nombresCampos.get(k));
+//						}
+//
+//						if (k < (nombresCampos.size() - 1))
+//							createView.append(", ");
+//					}
+//					if (codigoRegistro.equals("100000")
+//							|| codigoRegistro.equals("200000")) {
+//						createView
+//								.append(" FROM 977r.t")
+//								.append(codigoRegistro).append("_1 t1 ")
+//								.append(" left join 977r.t")
+//								.append(codigoRegistro)
+//								.append("_2 t2 ")
+//								.append("on t1.CampoClave = t2.CampoClave ")
+//								.append("and t1.fichero = t2.fichero ")
+//								.append("and t1.acuerdo = t2.acuerdo ")
+//								.append("and t1.fecha_factura = t2.fecha_factura ");
+//					} else if (codigoRegistro.equals("300000")) {
+//						createView
+//								.append(" FROM 977r.t")
+//								.append(codigoRegistro).append("_1 t1 ")
+//								.append(" left join 977r.t")
+//								.append(codigoRegistro)
+//								.append("_2 t2 ")
+//								.append("on t1.CampoClave = t2.CampoClave  ")
+//								.append("and t1.fichero = t2.fichero  ")
+//								.append("and t1.acuerdo = t2.acuerdo  ")
+//								.append("and t1.fecha_factura = t2.fecha_factura ")
+//								.append(" left join 977r.t")
+//								.append(codigoRegistro)
+//								.append("_3 t3 ")
+//								.append("on t1.CampoClave = t3.CampoClave ")
+//								.append("and t1.fichero = t3.fichero  ")
+//								.append("and t1.acuerdo = t3.acuerdo  ")
+//								.append("and t1.fecha_factura = t3.fecha_factura ")
+//								.append(" left join 977r.vCUC_CLIENTE cuc ")
+//								.append("on t1.cliente = cuc.cliente_cuc ");
+//					} else {
+//						createView
+//						.append(" FROM 977r.t")
+//								.append(codigoRegistro)
+//								.append("_1 t1 ")
+//								.append(" left join 977r.t")
+//								.append(codigoRegistro)
+//								.append("_2 t2 ")
+//								.append("on t1.CampoClave = t2.CampoClave ")
+//								.append("and t1.fichero = t2.fichero ")
+//								.append("and t1.acuerdo = t2.acuerdo ")
+//								.append("and t1.fecha_factura = t2.fecha_factura ")
+//								.append(" left join 977r.vCUC_CLIENTE cuc  ")
+//								.append("on t1.cliente = cuc.cliente_cuc ");
+//					}
+//					createView.append(";");
+//					out2.write("" + createView.toString() + CRLF);
+//					out2.write("COMMIT;" + CRLF);
+//					out2.flush();
 
-						if (k < (nombresCampos.size() - 1))
-							createView.append(", ");
-					}
-					if (codigoRegistro.equals("100000")
-							|| codigoRegistro.equals("200000")) {
-						createView
-								.append(" FROM 977r.t")
-								.append(codigoRegistro).append("_1 t1 ")
-								.append(" left join 977r.t")
-								.append(codigoRegistro)
-								.append("_2 t2 ")
-								.append("on t1.CampoClave = t2.CampoClave ")
-								.append("and t1.fichero = t2.fichero ")
-								.append("and t1.acuerdo = t2.acuerdo ")
-								.append("and t1.fecha_factura = t2.fecha_factura ");
-					} else if (codigoRegistro.equals("300000")) {
-						createView
-								.append(" FROM 977r.t")
-								.append(codigoRegistro).append("_1 t1 ")
-								.append(" left join 977r.t")
-								.append(codigoRegistro)
-								.append("_2 t2 ")
-								.append("on t1.CampoClave = t2.CampoClave  ")
-								.append("and t1.fichero = t2.fichero  ")
-								.append("and t1.acuerdo = t2.acuerdo  ")
-								.append("and t1.fecha_factura = t2.fecha_factura ")
-								.append(" left join 977r.t")
-								.append(codigoRegistro)
-								.append("_3 t3 ")
-								.append("on t1.CampoClave = t3.CampoClave ")
-								.append("and t1.fichero = t3.fichero  ")
-								.append("and t1.acuerdo = t3.acuerdo  ")
-								.append("and t1.fecha_factura = t3.fecha_factura ")
-								.append(" left join 977r.vCUC_CLIENTE cuc ")
-								.append("on t1.cliente = cuc.cliente_cuc ");
-					} else {
-						createView
-						.append(" FROM 977r.t")
-								.append(codigoRegistro)
-								.append("_1 t1 ")
-								.append(" left join 977r.t")
-								.append(codigoRegistro)
-								.append("_2 t2 ")
-								.append("on t1.CampoClave = t2.CampoClave ")
-								.append("and t1.fichero = t2.fichero ")
-								.append("and t1.acuerdo = t2.acuerdo ")
-								.append("and t1.fecha_factura = t2.fecha_factura ")
-								.append(" left join 977r.vCUC_CLIENTE cuc  ")
-								.append("on t1.cliente = cuc.cliente_cuc ");
-					}
-					createView.append(";");
-					out2.write("" + createView.toString() + CRLF);
-					out2.write("COMMIT;" + CRLF);
-					out2.flush();
-
-					if (codigoRegistro.equals("200000")) {
-						out2.write("drop view if exists 977r.vCUC_CLIENTE;" + CRLF);
-						out2.write("COMMIT;" + CRLF);
-						out2.write("create view 977r.vCUC_CLIENTE as ");
-						out2.write("SELECT ");
-						out2.write("  cliente as cliente_cuc, ");
-						out2.write("  left(cif_cliente,1) as cliente_tipo_doc, ");
-						out2.write("  right(cif_cliente,9) as cliente_cif, ");
-						out2.write("  nombre_cliente as cliente_nombre ");
-						out2.write("FROM 977r.v200000 v ");
-						out2.write("group by cliente_cuc ");
-						out2.write("order by cliente_cif;" + CRLF);
-						out2.write("COMMIT;" + CRLF);
-
-					}
+//					if (codigoRegistro.equals("200000")) {
+//						out2.write("drop view if exists 977r.vCUC_CLIENTE;" + CRLF);
+//						out2.write("COMMIT;" + CRLF);
+//						out2.write("create view 977r.vCUC_CLIENTE as ");
+//						out2.write("SELECT ");
+//						out2.write("  cliente as cliente_cuc, ");
+//						out2.write("  left(cif_cliente,1) as cliente_tipo_doc, ");
+//						out2.write("  right(cif_cliente,9) as cliente_cif, ");
+//						out2.write("  nombre_cliente as cliente_nombre ");
+//						out2.write("FROM 977r.v200000 v ");
+//						out2.write("group by cliente_cuc ");
+//						out2.write("order by cliente_cif;" + CRLF);
+//						out2.write("COMMIT;" + CRLF);
+//
+//					}
 
 				}// if(codigoRegistro.equals("702010") && detalleLlamadas)
 
@@ -747,17 +859,7 @@ public class Split977 {
 			 */
 			String[] comandos = { 
 					"ActualizarTablas"
-					
-					
-					// Los conceptos se inluyen en un SP que se llama 977R_ADDINCLUDE_ALL
-					
-					//, "SQL_Insert_Conceptos_601010"
-					//, "SQL_Insert_Conceptos_701010"
-					//, "SQL_Insert_Conceptos_6701010"
-
-					//, "ActualizarTablas"
-					//, "SQL_Insert_Trafico"
-					//, "SQL_Insert_Trafico_Internacional" 
+					, "ActualizarCuotasAperiodicas"
 				};
 
 			/**
@@ -777,7 +879,7 @@ public class Split977 {
 			}
 
 			out2.close();
-			outIndex.close();
+//			outIndex.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -807,7 +909,7 @@ public class Split977 {
 	 */
 	private void procesaFichero(BufferedReader in) {
 		try {
-			int numLinea = 0;
+//			int numLinea = 0;
 
 			String line;
 			line = in.readLine();
@@ -822,7 +924,7 @@ public class Split977 {
 
 				String codigoRegistro = line.substring(0, 6);
 				
-				System.out.println("procesaFichero:codigoRegistro:" + codigoRegistro);
+//				LOGGER.info("procesaFichero:codigoRegistro:" + codigoRegistro);
 
 				if (codigoRegistroExistente.get(codigoRegistro) == null)
 					codigoRegistroExistente.put(codigoRegistro, codigoRegistro);
@@ -841,7 +943,7 @@ public class Split977 {
 					if (codigoRegistro.equals("000000")) {
 						tratarRegistro000000(line);
 					}else{
-						System.out.println("procesaFichero:codigoRegistro:" + codigoRegistro+" y TipoRegistro tr == null");
+//						LOGGER.info("procesaFichero:codigoRegistro:" + codigoRegistro+" y TipoRegistro tr == null");
 					}
 				} else if (codigoRegistro.equals("901000")) {
 					tratarRegistro901000(line);
@@ -882,8 +984,9 @@ public class Split977 {
 
 								// String fOutName = codigoRegistro
 								// +"_"+(iBloque+1);
-								String fOutName = getDirectorio() + "/"
+								String fOutName = getDirectorioOut() + File.separator
 										+ codigoRegistro + "_" + (iBloque + 1);
+//								LOGGER.info("Fichero:" + fOutName);
 								BufferedWriter bwOut = getBROut(fOutName);
 								for (int k = 0; k < bloque.getNumEstructuras(); k++) {
 									int offset = (new Integer(
@@ -905,7 +1008,7 @@ public class Split977 {
 										} else {
 											campo = line.substring(pos);
 										}
-										// System.out.println(campo);
+										// LOGGER.info(campo);
 										/**
         									 * 
         									 */
@@ -918,7 +1021,7 @@ public class Split977 {
 										} else if (tipoCampo.equals("N")) {
 											long l = extraeLong(campo);
 											if (l == -999999) {
-												System.out.println("ERROR: "
+												LOGGER.info("ERROR: "
 														+ line);
 												l = 0;
 											}
@@ -934,11 +1037,11 @@ public class Split977 {
 													+ "\";");
 										}
 									} else {
-										System.out.println(offset);
+										LOGGER.info("" + offset);
 									}
 
 								}
-								// System.out.println(resultLine);
+								// LOGGER.info(resultLine);
 								bwOut.write("" + resultLine.toString() + CRLF);
 								bwOut.flush();
 							}
@@ -954,7 +1057,7 @@ public class Split977 {
 									.append("\"" + acuerdo + "\";")
 									.append("\"" + codigoRegistro + "_"
 											+ (iBloque + 1) + "\";");
-							String fOutName = getDirectorio() + "/"
+							String fOutName = getDirectorioOut() + File.separator
 									+ codigoRegistro + "_" + (iBloque + 1);
 							BufferedWriter bwOut = getBROut(fOutName);
 							for (int k = 0; k < bloque.getNumEstructuras(); k++) {
@@ -1000,7 +1103,7 @@ public class Split977 {
 									}
 								}
 							}
-							// System.out.println(resultLine);
+							// LOGGER.info(resultLine);
 							bwOut.write("" + resultLine.toString() + CRLF);
 							bwOut.flush();
 
@@ -1010,238 +1113,16 @@ public class Split977 {
 						// iBloque++){
 				}// if(tr == null){
 
-				numLinea++;
+//				numLinea++;
 				line = in.readLine();
 
 			}// while(true){
 
 			in.close();
 			
-			System.out.println("numLinea:" + numLinea);
+//			LOGGER.info("numLinea:" + numLinea);
 
 
-
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	/**
-	 * 
-	 * @param fileName
-	 */
-	@SuppressWarnings("unused")
-	private void procesaFichero(String fileName) {
-		try {
-			File file = new File(fileName);
-			BufferedReader in = new BufferedReader(new InputStreamReader(
-					new FileInputStream(file), CODIFICACION_FICHERO_ORIGEN));
-
-			int numLinea = 0;
-
-			String line;
-			line = in.readLine();
-			while (true) {
-				if (line == null) {
-					break;
-				}
-
-				if (line.length() < 6) {
-					break;
-				}
-
-				String codigoRegistro = line.substring(0, 6);
-
-				if (codigoRegistroExistente.get(codigoRegistro) == null)
-					codigoRegistroExistente.put(codigoRegistro, codigoRegistro);
-
-				String secuencial = line.substring(6, 6 + 8);
-				if (codigoRegistro.equals("100000")) {
-					// Extraemos el CIF
-					cifActual = line.substring(129, 129 + 18);
-				}
-				// Recuperamos la estructura de la línea
-
-				TipoRegistro tr = registros.get(codigoRegistro);
-				if (tr == null) {
-					// la primera linea es el registro 000000 y no esta
-					// contemplado en los registros 903000
-					if (codigoRegistro.equals("000000")) {
-						tratarRegistro000000(line);
-					}
-				} else if (codigoRegistro.equals("000000")) {
-					tratarRegistro000000(line);
-				} else if (codigoRegistro.equals("901000")) {
-					tratarRegistro901000(line);
-
-				} else if (codigoRegistro.equals("702010")
-						&& !isDetalleLlamadas()) {
-					// no hacemos nada... sin detalle
-				} else if (codigoRegistro.equals("702020")
-						&& !isDetalleLlamadasRI()) {
-					// no hacemos nada... sin detalle
-				} else {
-					// Los bloques se recorren 1 vez, a menos que el campo
-					// OCURRENCIAS con longitud <>0 diga lo contrario
-					int[] vecesBloque = { 1, 1, 1 };
-					int posVecesBloque = 1;
-					int pos = 0;
-					// Recorremos los bloques del registro
-					for (int iBloque = 0; iBloque < tr.getNumBloques(); iBloque++) {
-						Bloque bloque = tr.getBloques()[iBloque];
-						EstructuraCampo[] estructuras = bloque.getEstructuras();
-
-						if (vecesBloque[iBloque] > 1) {
-							for (int j = 0; j < vecesBloque[iBloque]; j++) {
-								StringBuilder resultLine = new StringBuilder();
-								resultLine.append("\"" + nombreFicheroOriginal
-										+ "\";");
-								resultLine.append("\"" + secuencial + "\";");
-								resultLine.append("\"" + fechaFactura + "\";");
-								resultLine.append("\"" + cifActual + "\";");
-								resultLine.append("\"" + acuerdo + "\";");
-								resultLine.append("\"" + codigoRegistro + "_"
-										+ (iBloque + 1) + "\";");
-
-								// String fOutName = codigoRegistro
-								// +"_"+(iBloque+1);
-								String fOutName = getDirectorio() + "/"
-										+ codigoRegistro + "_" + (iBloque + 1);
-								BufferedWriter bwOut = getBROut(fOutName);
-								for (int k = 0; k < bloque.getNumEstructuras(); k++) {
-									int offset = (new Integer(
-											estructuras[k].getLongitudCampo()))
-											.intValue();
-									if (offset > 0) {
-										String tipoCampo = estructuras[k]
-												.getTipoCampo();
-										String formatoCampo = estructuras[k]
-												.getFormatoCampo();
-										String campo = "";
-										/**
-										 * Falla por longitud en algunos
-										 * registros, por ejemplo 400000
-										 */
-										if (line.length() > (pos + offset)) {
-											campo = line.substring(pos,
-													pos += offset);
-										} else {
-											campo = line.substring(pos);
-										}
-										// System.out.println(campo);
-										/**
-										 * 
-										 */
-										campo = correccionCamposNumericos(
-												tipoCampo, campo);
-										if (tipoCampo.equals("I")) {
-											Double d = extraeDouble(
-													formatoCampo, campo);
-											resultLine.append("" + d + ";");
-										} else if (tipoCampo.equals("N")) {
-											long l = extraeLong(campo);
-											if (l == -999999) {
-												System.out.println("ERROR: "
-														+ line);
-												l = 0;
-											}
-											resultLine.append("" + l + ";");
-										} else if (tipoCampo.equals("F")) {
-											if (campo.equals("00000000")) {
-												campo = "25001231";
-											}
-											resultLine.append("" + campo + ";");
-										} else {
-											resultLine.append("\""
-													+ ltrim(campo.trim())
-													+ "\";");
-										}
-									} else {
-										System.out.println(offset);
-									}
-
-								}
-								// System.out.println(resultLine);
-								bwOut.write("" + resultLine.toString() + CRLF);
-								bwOut.flush();
-							}
-
-						} else {
-							StringBuilder resultLine = new StringBuilder();
-							resultLine.append("\"" + nombreFicheroOriginal
-									+ "\";");
-							resultLine.append("\"" + secuencial + "\";");
-							resultLine.append("\"" + fechaFactura + "\";");
-							resultLine.append("\"" + cifActual + "\";");
-							resultLine.append("\"" + acuerdo + "\";");
-							resultLine.append("\"" + codigoRegistro + "_"
-									+ (iBloque + 1) + "\";");
-							String fOutName = getDirectorio() + "/"
-									+ codigoRegistro + "_" + (iBloque + 1);
-							BufferedWriter bwOut = getBROut(fOutName);
-							for (int k = 0; k < bloque.getNumEstructuras(); k++) {
-								int offset = (new Integer(
-										estructuras[k].getLongitudCampo()))
-										.intValue();
-								if (offset > 0) {
-									String tipoCampo = estructuras[k]
-											.getTipoCampo();
-									String campo = line.substring(pos,
-											pos += offset);
-									String formatoCampo = estructuras[k]
-											.getFormatoCampo();
-									campo = correccionCamposNumericos(
-											tipoCampo, campo);
-									if (tipoCampo.equals("I")) {
-										Double d = extraeDouble(formatoCampo,
-												campo);
-										resultLine.append("" + d + ";");
-									} else if (tipoCampo.equals("N")) {
-										long l = extraeLong(campo);
-										if (l == -999999) {
-											System.out
-													.println("ERROR: " + line);
-											l = 0;
-										}
-										resultLine.append("" + l + ";");
-									} else if (tipoCampo.equals("F")) {
-										if (campo.equals("00000000")) {
-											campo = "25001231";
-										}
-										resultLine.append("" + campo + ";");
-									} else {
-										resultLine.append("\""
-												+ ltrim(campo.trim()) + "\";");
-									}
-									if (estructuras[k].getNombreCampo()
-											.substring(0, 5).equals("OCURR")
-											&& offset > 0 && iBloque == 0) {
-										vecesBloque[posVecesBloque] = (new Integer(
-												campo)).intValue();
-										posVecesBloque++;
-									}
-								}
-							}
-							// System.out.println(resultLine);
-							bwOut.write("" + resultLine.toString() + CRLF);
-							bwOut.flush();
-
-						}
-
-					}// for(int iBloque = 0; iBloque < tr.getNumBloques();
-						// iBloque++){
-				}// if(tr == null){
-
-				numLinea++;
-				line = in.readLine();
-
-			}// while(true){
-
-			in.close();
 
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
@@ -1280,12 +1161,12 @@ public class Split977 {
 			int posicionCIFActual = 162;
 			
 			fechaFactura = line.substring(posicionFechaFactura, posicionFechaFactura + 8);
-			System.out.println(fechaFactura);
+			LOGGER.info("Fecha Factura:["+ fechaFactura +"]");
 			// nombre del fichero
 			nombreFicheroOriginal = line.substring(posicionFicheroOriginal, posicionFicheroOriginal + 12);
 			// cif actual
 			String cifActual000000 = line.substring(posicionCIFActual, posicionCIFActual + 18);
-			System.out.println("tratarRegistro000000:nombreFicheroOriginal:" + nombreFicheroOriginal);
+//			LOGGER.info("tratarRegistro000000:nombreFicheroOriginal:" + nombreFicheroOriginal);
 			StringBuilder resultLine = new StringBuilder();
 			resultLine.append("\"" + nombreFicheroOriginal + "\";");
 			resultLine.append("\"" + fechaFactura + "\";");
@@ -1294,16 +1175,16 @@ public class Split977 {
 			// File fileOut2 = new File(fileName2 + ".sql");
 			// out2 = new BufferedWriter( new OutputStreamWriter(new
 			// FileOutputStream(fileOut2),CODIFICACION_FICHERO_ORIGEN));
-			String fOutName = getDirectorio() + "/" + "000000";
-			System.out.println("tratarRegistro000000:fOutName:" + fOutName);
+			String fOutName = getDirectorioOut() + "/" + "000000";
+//			LOGGER.info("tratarRegistro000000:fOutName:" + fOutName);
 
 			BufferedWriter bwOut = getBROut(fOutName);
 			bwOut.write("" + resultLine.toString() + CRLF);
 			bwOut.flush();
-			System.out.println("tratarRegistro000000:" + resultLine.toString());
+//			LOGGER.info("tratarRegistro000000:" + resultLine.toString());
 			// bwOut.close();
 		} catch (Exception e) {
-			System.out.println("ERROR!!! tratarRegistro000000");
+			LOGGER.info("ERROR!!! tratarRegistro000000");
 		}
 	}
 
@@ -1334,7 +1215,7 @@ public class Split977 {
 			resultLine.append("\"" + cifActual + "\";");
 			resultLine.append("\"" + acuerdo + "\";");
 			resultLine.append("\"" + codigoRegistro + "_" + (1) + "\";");
-			String fOutName = getDirectorio() + "/" + codigoRegistro + "_"
+			String fOutName = getDirectorioOut() + "/" + codigoRegistro + "_"
 					+ (1);
 			bwOut = getBROut(fOutName);
 			int pos = 0;
@@ -1356,7 +1237,7 @@ public class Split977 {
 					} else if (nomCampo.trim().equals("LONGITUD TEXTOS")) {
 						longitudTextoBloque3 = (new Integer(campo)).intValue();
 					}
-					// System.out.println(nomCampo + ":" + campo + ":" +
+					// LOGGER.info(nomCampo + ":" + campo + ":" +
 					// repeticionesBloque2 + ":" + longitudTextoBloque3);
 					campo = correccionCamposNumericos(tipoCampo, campo);
 					if (tipoCampo.equals("I")) {
@@ -1365,14 +1246,14 @@ public class Split977 {
 					} else {
 						resultLine.append("\"" + ltrim(campo.trim()) + "\";");
 					}
-					// System.out.println(resultLine);
+					// LOGGER.info(resultLine);
 				} else {
-					System.out.println(offset);
+					LOGGER.info("" + offset);
 				}
 			}
 			bwOut.write("" + resultLine.toString() + CRLF);
 			bwOut.flush();
-			fOutName = codigoRegistro + "_" + (2);
+			fOutName = getDirectorioOut() + "/" + codigoRegistro + "_" + (2);
 			bwOut2 = getBROut(fOutName);
 			for (int i = 0; i < repeticionesBloque2; i++) {
 				resultLine = new StringBuilder();
@@ -1408,7 +1289,7 @@ public class Split977 {
 									+ "\";");
 						}
 					} else {
-						System.out.println(offset);
+						LOGGER.info("" + offset);
 					}
 				}
 				if (line.length() > (pos + longitudTextoBloque3)) {
@@ -1441,6 +1322,7 @@ public class Split977 {
 		 * El método busca el fichero en la HashTable, si lo encuentra devuelve
 		 * el Objeto sino crea uno nuevo
 		 */
+//		LOGGER.info("Fichero clave:" + fOutName);
 		File fileOut = null;
 		BufferedWriter out = null;
 		try {
@@ -1452,7 +1334,7 @@ public class Split977 {
 						CODIFICACION_FICHERO_ORIGEN));
 				filesOut.put(fOutName, fileOut);
 				bwOut.put(fOutName, out);
-				System.out.println("Fichero:" + fOutName);
+//				LOGGER.info("Fichero:" + fOutName);
 			} else {
 				out = bwOut.get(fOutName);
 			}
@@ -1495,21 +1377,21 @@ public class Split977 {
 					int pos = 0;
 					int offset = 0;
 					String line2 = line.substring(122);
-					// System.out.println(numLinea+";"+line2);
+					// LOGGER.info(numLinea+";"+line2);
 					offset = 6;
 					String codigoRegistro = line2.substring(pos, pos += offset);
 					tr.setCodigoRegistro(codigoRegistro);
-					// System.out.println("Registro:"+codigoRegistro);
+					// LOGGER.info("Registro:"+codigoRegistro);
 					offset = 3;
 					String numBloques = line2.substring(pos, pos += offset);
 					int iNumBloques = Integer.parseInt(numBloques);
 					tr.setNumBloques(iNumBloques);
-					// System.out.println("NumBloques:"+ iNumBloques);
+					// LOGGER.info("NumBloques:"+ iNumBloques);
 					offset = 3;
 					String numCampos = line2.substring(pos, pos += offset);
 					int iNumCampos = Integer.parseInt(numCampos);
 					tr.setNumCampos(iNumCampos);
-					// System.out.println("NumCampos:"+ iNumCampos );
+					// LOGGER.info("NumCampos:"+ iNumCampos );
 					int[] arr = { 1 };
 					for (int j = 0; j < iNumBloques; j++) {
 						// Tenemos que pasar el valor de la variable pos por
@@ -1533,12 +1415,12 @@ public class Split977 {
 			}
 
 			in.close();
-			System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-			// System.out.println(registros);
+			LOGGER.info("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+			// LOGGER.info(registros);
 			Enumeration<String> e = (Enumeration<String>) registros.keys();
 			while (e.hasMoreElements()) {
 				String key = (String) e.nextElement();
-				System.out.println(key + ":" + registros.get(key));
+//				LOGGER.info(key + ":" + registros.get(key));
 			}
 
 		} catch (FileNotFoundException e) {
@@ -1562,7 +1444,7 @@ public class Split977 {
 	private void getEstructuraRegistros(BufferedReader in) {
 		try {
 
-			int numLinea = 0;
+//			int numLinea = 0;
 
 			String line;
 			line = in.readLine();
@@ -1578,21 +1460,21 @@ public class Split977 {
 					int pos = 0;
 					int offset = 0;
 					String line2 = line.substring(122);
-					// System.out.println(numLinea+";"+line2);
+					// LOGGER.info(numLinea+";"+line2);
 					offset = 6;
 					String codigoRegistro = line2.substring(pos, pos += offset);
 					tr.setCodigoRegistro(codigoRegistro);
-					// System.out.println("Registro:"+codigoRegistro);
+					// LOGGER.info("Registro:"+codigoRegistro);
 					offset = 3;
 					String numBloques = line2.substring(pos, pos += offset);
 					int iNumBloques = Integer.parseInt(numBloques);
 					tr.setNumBloques(iNumBloques);
-					// System.out.println("NumBloques:"+ iNumBloques);
+					// LOGGER.info("NumBloques:"+ iNumBloques);
 					offset = 3;
 					String numCampos = line2.substring(pos, pos += offset);
 					int iNumCampos = Integer.parseInt(numCampos);
 					tr.setNumCampos(iNumCampos);
-					// System.out.println("NumCampos:"+ iNumCampos );
+					// LOGGER.info("NumCampos:"+ iNumCampos );
 					int[] arr = { 1 };
 					for (int j = 0; j < iNumBloques; j++) {
 						
@@ -1614,21 +1496,21 @@ public class Split977 {
 
 				}// if(line.startsWith("903000"))
 
-				numLinea++;
+//				numLinea++;
 				line = in.readLine();
 
 			}
 
 			in.close();
-			System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-			// System.out.println(registros);
-			Enumeration<String> e = (Enumeration<String>) registros.keys();
-			while (e.hasMoreElements()) {
-				String key = (String) e.nextElement();
-				System.out.println(key + ":" + registros.get(key));
-			}
+//			LOGGER.info("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+			// LOGGER.info(registros);
+//			Enumeration<String> e = (Enumeration<String>) registros.keys();
+//			while (e.hasMoreElements()) {
+//				String key = (String) e.nextElement();
+//				LOGGER.info(key + ":" + registros.get(key));
+//			}
 			
-			System.out.println("numLinea:" + numLinea);
+//			LOGGER.info("numLinea:" + numLinea);
 
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
@@ -1651,7 +1533,7 @@ public class Split977 {
 			String negativos = "}JKLMNOPQR";
 
 			String derecha = campo.substring(campo.length() - 1);
-			// System.out.println("campo:" + campo + "\tderecha:" + derecha);
+			// LOGGER.info("campo:" + campo + "\tderecha:" + derecha);
 			if (positivos.indexOf(derecha) > -1) { // es positivo
 				campo = campo.replace(derecha,
 						(new Integer(positivos.indexOf(derecha))).toString());
@@ -1660,7 +1542,7 @@ public class Split977 {
 						(new Integer(negativos.indexOf(derecha))).toString());
 				campo = "-" + campo;
 			}
-			// System.out.println("campo:" + campo);
+			// LOGGER.info("campo:" + campo);
 		}
 		return campo;
 	}
@@ -1677,11 +1559,11 @@ public class Split977 {
 		int pos = posiciones[0];
 		String numBloque = line2.substring(pos, pos += offset);
 		int iNumBloque = Integer.parseInt(numBloque);
-		// System.out.println("NumBloque:"+ iNumBloque );
+		// LOGGER.info("NumBloque:"+ iNumBloque );
 		offset = 1;
 		String numBloquePadre = line2.substring(pos, pos += offset);
 		int iNumBloquePadre = Integer.parseInt(numBloquePadre);
-		// System.out.println("NumBloquePadre:"+ iNumBloquePadre );
+		// LOGGER.info("NumBloquePadre:"+ iNumBloquePadre );
 		Bloque bloque = new Bloque();
 		bloque.setNumBloque(iNumBloque);
 		bloque.setNumBloquePadre(iNumBloquePadre);
@@ -1690,16 +1572,16 @@ public class Split977 {
 			offset = 52;
 			String strEstructuraCampo = line2.substring(pos, pos += offset);
 			if (!strEstructuraCampo.substring(0, 6).equals("      ")) {
-				// System.out.println("estructuraCampo:"+
+				// LOGGER.info("estructuraCampo:"+
 				// splitRegistro(strEstructuraCampo) );
 				EstructuraCampo ec = extraeEstructuraCampo(strEstructuraCampo);
 				estructuras[k] = ec;
-				// System.out.println(ec);
+				// LOGGER.info(ec);
 				bloque.setNumEstructuras(bloque.getNumEstructuras() + 1);
 			}
 		}
 		bloque.setEstructuras(estructuras);
-		System.out.println(bloque);
+//		LOGGER.info("" + bloque);
 		posiciones[0] = pos;
 		return bloque;
 	}
@@ -1766,7 +1648,7 @@ public class Split977 {
 
 			} catch (NumberFormatException e) {
 				// e.printStackTrace();
-				System.out.println("Error en la conversión de [" + campo
+				LOGGER.info("Error en la conversión de [" + campo
 						+ "] a tipo DOUBLE.");
 				return 0.0;
 			}
@@ -1784,7 +1666,7 @@ public class Split977 {
 		try {
 			l = new Long(campo.trim());
 		} catch (NumberFormatException e) {
-			System.out.println("Error en la conversión de [" + campo
+			LOGGER.info("Error en la conversión de [" + campo
 					+ "] a tipo LONG.");
 			l = -999999; // error
 		}
@@ -1918,16 +1800,16 @@ public class Split977 {
 	/**
 	 * @return the directorio
 	 */
-	public String getDirectorio() {
-		return directorio;
+	public String getDirectorioOut() {
+		return directorioOut;
 	}
 
 	/**
 	 * @param directorio
 	 *            the directorio to set
 	 */
-	public void setDirectorio(String directorio) {
-		this.directorio = directorio;
+	public void setDirectorioOut(String directorio) {
+		this.directorioOut = directorio;
 	}
 
 	/**
@@ -1982,5 +1864,40 @@ public class Split977 {
 	public void setTiempoEmpleado(long tiempoEmpleado) {
 		this.tiempoEmpleado = tiempoEmpleado;
 	}
+	
+	/**
+	 * @param head
+	 * @param ext
+	 * @return str
+	 */
+	private String nombreAleatorio(){
+
+		final SimpleDateFormat formatter = new SimpleDateFormat ("yyyyMMdd_HHmmss_a_zzz");
+		final Date day = new Date();
+
+		return formatter.format( day );
+
+	}
+	
+	public void setFicherosZipPath(String path){
+		List<String> aListFiles = new ArrayList<String>();
+		File dir = new File(path);
+		if(dir.isDirectory()){
+			String[] files = dir.list();
+			for(String file : files){
+				int dot = file.lastIndexOf(".");
+				String extension = file.substring(dot + 1);
+				if(extension.equalsIgnoreCase("zip")){
+					aListFiles.add(path + File.separator + file);
+					System.out.println(path + File.separator + file);
+				}
+			}
+			String[] f = aListFiles.toArray(new String[aListFiles.size()]);
+			setFicheros(f);
+		}
+		
+	}
+	
+	
 
 }
