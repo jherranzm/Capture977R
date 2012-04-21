@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<persistence 
+<persistence   
 	version="1.0" xmlns="http://java.sun.com/xml/ns/persistence">
 	
 	
@@ -28,8 +28,7 @@
 	
 		<properties>
 			<property name="javax.persistence.jdbc.driver" value="com.mysql.jdbc.Driver" />
-			<property name="javax.persistence.jdbc.url"
-				value="jdbc:mysql://localhost:3306/977R" />
+			<property name="javax.persistence.jdbc.url" value="jdbc:mysql://localhost:3306/977R" />
 			<property name="javax.persistence.jdbc.user" value="root" />
 			<property name="javax.persistence.jdbc.password" value="illuminatti" />
 
