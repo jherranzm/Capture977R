@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<persistence   
+	version="1.0" xmlns="http://java.sun.com/xml/ns/persistence">
+	
+	
+	<persistence-unit name="MARTE" transaction-type="RESOURCE_LOCAL">
+	
+		<properties>
+			<property name="eclipselink.jdbc.url" value="jdbc:mysql://localhost:3306/acuerdos" />
+			<property name="eclipselink.jdbc.driver" value="com.mysql.jdbc.Driver" />
+			<property name="eclipselink.jdbc.user" value="root" />
+			<property name="eclipselink.jdbc.password" value="illuminatti" />
+
+			<!-- EclipseLink should create the database schema automatically -->
+			<!-- 
+			<property name="eclipselink.ddl-generation" value="drop-and-create-tables" />
+			 -->
+			<property name="eclipselink.ddl-generation.output-mode" value="database" />
+			
+		</properties>
+
+	</persistence-unit>
+
+	<persistence-unit name="977R" transaction-type="RESOURCE_LOCAL">
+	
+		<class>telefonica.aaee.model.FicherosCargados</class>
+		<class>telefonica.aaee.model.ResumenRegularizacion</class>
+	
+		<properties>
+			<property name="javax.persistence.jdbc.driver" value="com.mysql.jdbc.Driver" />
+			<property name="javax.persistence.jdbc.url" value="jdbc:mysql://localhost:3306/977R" />
+			<property name="javax.persistence.jdbc.user" value="root" />
+			<property name="javax.persistence.jdbc.password" value="illuminatti" />
+
+			<!-- EclipseLink should create the database schema automatically -->
+			<!-- 
+			<property name="eclipselink.ddl-generation" value="drop-and-create-tables" />
+			 -->
+			<property name="javax.persistence.ddl-generation.output-mode" value="database" />
+			
+		</properties>
+
+	</persistence-unit>
+</persistence>
